@@ -15,9 +15,8 @@ class CreateQuestionsTable extends Migration
     {
         Schema::create('questions', function (Blueprint $table) {
             $table->bigIncrements('id');
-            $table->string('username',30)->unique();
-            $table->string('email',60)->unique();
-            $table->string('password',80);
+            $table->string('question',128);
+            $table->text('choices');
             $table->timestamps();
         });
     }
