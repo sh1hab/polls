@@ -12,34 +12,44 @@ class UserController extends Controller
     {
         try{
             $this->validate($request,[
-                'full_name'=>'required',
-                'username'=>'required|unique:users',
-                'email'=>'required',
-                'password'=>'required',
+                'full_name' =>'required|min:6',
+                'username'  =>'required|unique:users|min:6',
+                'email'     =>'required|email|unique:users|min:6',
+                'password'  =>'required|min:6',
             ]);
-        }catch (ValidationException $e)
-        {
-            return response()->json(
-                [
-                    'success'=>false,
-                    'status'=>200,
-                    'message'=>$e->getMessage()
-                ]
-            );
+        }catch (ValidationException $e) {
+            return $this->response('validation error',$e->getMessage(),403);
         }
 
-        $id = DB::table('users')->insertGetId([
-            'full_name' =>  $request->input('full_name'),
-            'username'  =>  $request->input('username'),
-            'email'     =>  $request->input('email'),
-            'password'  =>  $request->input('password'),
-        ]);
+        try{
+            $id = app('db')->table('users')->insertGetId([
+                'full_name' =>  trim($request->input('full_name')),
+                'username'  =>  strtolower(trim($request->input('username'))),
+                'email'     =>  strtolower(trim($request->input('email'))),
+                'password'  =>  app('hash')->make($request->input('password')),
+            ]);
 
+            $user = app('db')
+                ->table('users')
+                ->select('username','email','password')
+                ->where('id',$id)
+                ->first();
+
+            return $this->response("Data Insert successful",json_encode($user),201);
+
+        }catch (\PDOException $e) {
+            return $this->response("database error","",500);
+        }
+
+    }
+
+    function response($message,$data,$status=200){
         return response()->json(
-            [
-                'status'=>200,
-                'message'=>'Data Insert successful'
-            ],422
+            array(
+                'status'=>$status,
+                'message'=>$message,
+                'data'=>$data
+            ),$status
         );
     }
 
