@@ -8,19 +8,11 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Tymon\JWTAuth\JWTAuth;
+use Illuminate\Support\Facades\Validator;
 
 class UserController extends Controller
 {
-    /**
-     * @var \Tymon\JWTAuth\JWTAuth
-     */
-    protected $jwt;
-
-    public function __construct(JWTAuth $jwt)
-    {
-        $this->jwt = $jwt;
-    }
-
+    
     function  index(){
         try{
             $users = app('db')
@@ -56,7 +48,7 @@ class UserController extends Controller
                 'username'  =>  strtolower(trim($request->input('username'))),
                 'email'     =>  strtolower(trim($request->input('email'))),
                 'password'  =>  app('hash')->make($request->input('password')),
-                'created' => Carbon::now()
+                'created_at' => Carbon::now()
             ]);
 
             $user = app('db')
@@ -75,61 +67,48 @@ class UserController extends Controller
 
     function authenticate(Request $request)
     {
-        try{
-            $this->validate($request, array(
-                'email'     =>'required|email|min:6',
-                'password'  =>'required|min:6',
-            ));
-        }catch (ValidationException $e) {
-            return $this->response('validation error',$e->getMessage(),403);
+        // try{
+        //     $this->validate($request, array(
+        //         'email'     =>'required|email|min:6',
+        //         'password'  =>'required|min:6',
+        //     ));
+        // }catch (ValidationException $e) {
+        //     return $this->response('validation error',$e->getMessage(),403);
+        // }
+
+        $validator = Validator::make($request->only('email','password'),array(
+            'email'     =>'required|email|min:6',
+            'password'  =>'required|min:6',
+        ));
+        
+        if ($validator->fails()) {
+            return $this->response('validation error',$validator->errors(),403);
         }
 
-        var_dump( Auth::guard('api')->attempt( $request->only('email','password') ) );
-            //
-            //        die();
+        $token = Auth::guard('api')->attempt( $request->only('email','password') );
 
-            //        app('auth')->authenticate($request->all());
-
-        $user = app('db')
-            ->table('users')
-            ->where('email',$request->input('email'))
-            ->andWhere('password',$request->input('password'))
-            ->first();
+        if ( $token ) {
+            return $this->response('User Authenticated',$token,200);
+        }
+        return $this->response('User unuthenticated',$token,400);
+            
     }
 
-    
-
-    public function postLogin(Request $request)
+    protected function profile()
     {
-        $this->validate($request, [
-            'email'    => 'required|email|max:255',
-            'password' => 'required',
-        ]);
+        $user = app('auth')->user();
 
-        try {
-
-            if (! $token = $this->jwt->attempt($request->only('email', 'password'))) {
-                return response()->json(['user_not_found'], 404);
-            }
-
-        } catch (\Tymon\JWTAuth\Exceptions\TokenExpiredException $e) {
-
-            return response()->json(['token_expired'], 500);
-
-        } catch (\Tymon\JWTAuth\Exceptions\TokenInvalidException $e) {
-
-            return response()->json(['token_invalid'], 500);
-
-        } catch (\Tymon\JWTAuth\Exceptions\JWTException $e) {
-
-            return response()->json(['token_absent' => $e->getMessage()], 500);
-
+        if ($user) 
+        {
+            return $this->response("User Profile found",json_encode($user),201);
         }
 
-        return response()->json(compact('token'));
+        return $this->response('User Profile not found',$token,400);
+
     }
 
-    function response($message,$data,$status=200){
+    function response($message,$data,$status=200)
+    {
         return response()->json(
             array(
                 'status'=>$status,
